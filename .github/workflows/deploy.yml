@@ -1,0 +1,91 @@
+name: Django Secure Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]  # Triggers only when you push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # --- STEP 1: PRE-FLIGHT CHECKS ---
+      - name: Environment Variable Verification
+        run: |
+          echo "Verifying server-side .env completeness..."
+          RESPONSE=$(curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && python env_check.py")
+          
+          if [[ $RESPONSE == *"CRITICAL"* ]]; then
+            echo "Environment mismatch detected! Update your .env file on PythonAnywhere."
+            exit 1
+          fi
+
+      # --- STEP 2: DATA SAFETY ---
+      - name: Pre-Migration Database Backup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="/home/${{ secrets.PA_USERNAME }}/backups/pre_migrate_$TIMESTAMP.sql"
+          echo "Creating database backup at $BACKUP_FILE..."
+          
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=mysqldump -u ${{ secrets.DB_USER }} -h ${{ secrets.DB_HOST }} --password='${{ secrets.DB_PASSWORD }}' ${{ secrets.DB_NAME }} > $BACKUP_FILE"
+
+      # --- STEP 3: DEPLOYMENT ---
+      - name: Pull Code & Collect Static
+        run: |
+          echo "Pulling latest code and collecting static files..."
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && git pull && python manage.py collectstatic --noinput"
+
+      - name: Run Database Migrations
+        run: |
+          echo "Applying migrations..."
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && python manage.py migrate"
+
+      - name: Reload Web App
+        id: reload
+        run: |
+          echo "Restarting the PythonAnywhere server..."
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/webapps/${{ secrets.PA_DOMAIN }}/reload/"
+
+      # --- STEP 4: POST-DEPLOYMENT VALIDATION ---
+      - name: Verify Database Health
+        id: health_check
+        run: |
+          echo "Testing database connection..."
+          # Wait a few seconds for the server to spin back up
+          sleep 5
+          RESPONSE=$(curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=python /home/${{ secrets.PA_USERNAME }}/your-repo/manage.py db_check")
+          
+          if [[ $RESPONSE == *"Database connection failed"* ]]; then
+            exit 1
+          fi
+
+      # --- STEP 5: ERROR HANDLING (ROLLBACK) ---
+      - name: Rollback on Failure
+        if: failure() && steps.health_check.outcome == 'failure'
+        run: |
+          echo "Health check failed! Rolling back code to previous stable state..."
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && git reset --hard HEAD@{1} && touch /var/www/${{ secrets.PA_DOMAIN }}_wsgi.py"
+
+      # --- STEP 6: MAINTENANCE ---
+      - name: Cleanup Old Backups
+        if: always()
+        run: |
+          echo "Purging backups older than 7 days..."
+          curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
+               -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
+               -d "executable=find /home/${{ secrets.PA_USERNAME }}/backups/ -name '*.sql' -mtime +7 -exec rm {} \;"
