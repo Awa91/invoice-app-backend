@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 
 
 # Load .env file
@@ -170,7 +173,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:64368",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "http://10.0.2.2:8000" #Android app URL
+    "http://10.0.2.2:8000", #Android app URL
     "https://inoba.pythonanywhere.com",
     # Add your Flutter app origin if running on web or emulator
 ]
@@ -222,3 +225,14 @@ MEDIA_URL = '/media/'
 # The absolute filesystem path to the directory that will hold user-uploaded files
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+
+# Configure sentry
+sentry_sdk.init(
+    dsn=os.getenv('SENTRY_DSN'),
+    integrations=[DjangoIntegration()],
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    traces_sample_rate=1.0,
+    # If you wish to associate users to errors (recommended)
+    send_default_pii=True
+)
