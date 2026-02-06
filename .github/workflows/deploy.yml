@@ -17,7 +17,7 @@ jobs:
           echo "Verifying server-side .env completeness..."
           RESPONSE=$(curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
                -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
-               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && python env_check.py")
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/repos/invoice-app-backend && python env_check.py")
           
           if [[ $RESPONSE == *"CRITICAL"* ]]; then
             echo "Environment mismatch detected! Update your .env file on PythonAnywhere."
@@ -41,14 +41,14 @@ jobs:
           echo "Pulling latest code and collecting static files..."
           curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
                -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
-               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && git pull && python manage.py collectstatic --noinput"
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/repos/invoice-app-backend && git pull && python manage.py collectstatic --noinput"
 
       - name: Run Database Migrations
         run: |
           echo "Applying migrations..."
           curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
                -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
-               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && python manage.py migrate"
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/repos/invoice-app-backend && python manage.py migrate"
 
       - name: Reload Web App
         id: reload
@@ -66,7 +66,7 @@ jobs:
           sleep 5
           RESPONSE=$(curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
                -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
-               -d "executable=python /home/${{ secrets.PA_USERNAME }}/your-repo/manage.py db_check")
+               -d "executable=python /home/${{ secrets.PA_USERNAME }}/repos/invoice-app-backend/manage.py db_check")
           
           if [[ $RESPONSE == *"Database connection failed"* ]]; then
             exit 1
@@ -79,7 +79,7 @@ jobs:
           echo "Health check failed! Rolling back code to previous stable state..."
           curl -H "Authorization: Token ${{ secrets.PA_API_TOKEN }}" \
                -X POST "https://www.pythonanywhere.com/api/v0/user/${{ secrets.PA_USERNAME }}/consoles/" \
-               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/your-repo && git reset --hard HEAD@{1} && touch /var/www/${{ secrets.PA_DOMAIN }}_wsgi.py"
+               -d "executable=cd /home/${{ secrets.PA_USERNAME }}/repos/invoice-app-backend && git reset --hard HEAD@{1} && touch /var/www/${{ secrets.PA_DOMAIN }}_wsgi.py"
 
       # --- STEP 6: MAINTENANCE ---
       - name: Cleanup Old Backups
