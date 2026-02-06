@@ -1,8 +1,10 @@
-name: Django Secure Deployment Pipeline
+name: Django CI
 
 on:
   push:
-    branches: [ main ]  # Triggers only when you push to the main branch
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
