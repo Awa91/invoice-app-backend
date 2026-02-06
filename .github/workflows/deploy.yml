@@ -2,7 +2,7 @@ name: Django Secure Deployment Pipeline
 
 on:
   push:
-    branches: [ main ]  # Triggers only when you push to the main branch
+    branches: [ main ]  # Triggers only when you push to the main branch1
 
 jobs:
   deploy:
