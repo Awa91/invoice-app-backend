@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v1.0.0
+        uses: actions/checkout@0d213a1bc075c68faae639d782d353c72fe644b8
 
       # --- STEP 1: PRE-FLIGHT CHECKS ---
       - name: Environment Variable Verification
