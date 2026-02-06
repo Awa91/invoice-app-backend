@@ -215,6 +215,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# The absolute path to the directory where collectstatic will collect static files for deployment.
+# On PythonAnywhere, this is usually a 'static' folder in your home directory.
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 
 # The URL prefix for media files
